@@ -16,61 +16,101 @@
 
 package com.example.android.trackmysleepquality
 
-// TODO (07) Uncomment the code in this file, then run the tests.
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import androidx.room.Room
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.example.android.trackmysleepquality.database.SleepDatabase
+import com.example.android.trackmysleepquality.database.SleepDatabaseDao
+import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.ext.getOrAwaitValue
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.After
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.IOException
+import java.util.concurrent.Executors
 
-// TODO (08) Optional: Add tests to exercise the other DAO methods.
+/**
+ * This is not meant to be a full set of tests. For simplicity, most of your samples do not
+ * include tests. However, when building the Room, it is helpful to make sure it works before
+ * adding the UI.
+ */
 
-//import androidx.room.Room
-//import androidx.test.ext.junit.runners.AndroidJUnit4
-//import androidx.test.platform.app.InstrumentationRegistry
-//import com.example.android.trackmysleepquality.database.SleepDatabase
-//import com.example.android.trackmysleepquality.database.SleepDatabaseDao
-//import com.example.android.trackmysleepquality.database.SleepNight
-//import org.junit.Assert.assertEquals
-//import org.junit.After
-//import org.junit.Before
-//import org.junit.Test
-//import org.junit.runner.RunWith
-//import java.io.IOException
-//
-///**
-// * This is not meant to be a full set of tests. For simplicity, most of your samples do not
-// * include tests. However, when building the Room, it is helpful to make sure it works before
-// * adding the UI.
-// */
-//
-//@RunWith(AndroidJUnit4::class)
-//class SleepDatabaseTest {
-//
-//    private lateinit var sleepDao: SleepDatabaseDao
-//    private lateinit var db: SleepDatabase
-//
-//    @Before
-//    fun createDb() {
-//        val context = InstrumentationRegistry.getInstrumentation().targetContext
-//        // Using an in-memory database because the information stored here disappears when the
-//        // process is killed.
-//        db = Room.inMemoryDatabaseBuilder(context, SleepDatabase::class.java)
-//                // Allowing main thread queries, just for testing.
-//                .allowMainThreadQueries()
-//                .build()
-//        sleepDao = db.sleepDatabaseDao
-//    }
-//
-//    @After
-//    @Throws(IOException::class)
-//    fun closeDb() {
-//        db.close()
-//    }
-//
-//    @Test
-//    @Throws(Exception::class)
-//    fun insertAndGetNight() {
-//        val night = SleepNight()
-//        sleepDao.insert(night)
-//        val tonight = sleepDao.getTonight()
-//        assertEquals(tonight?.sleepQuality, -1)
-//    }
-//}
-//
-//
+@RunWith(AndroidJUnit4::class)
+class SleepDatabaseTest {
+
+    private lateinit var sleepDao: SleepDatabaseDao
+    private lateinit var db: SleepDatabase
+
+    /**
+     * A JUnit Test Rule that swaps the background executor used by the Architecture
+     * Components with a different one which executes each task synchronously.
+     * Without this rule, LiveData has problem with observers on background thread.
+     * Credit: https://stackoverflow.com/a/52274925
+     */
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
+
+    @Before
+    fun createDb() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        // Using an in-memory database because the information stored here disappears when the
+        // process is killed.
+        db = Room.inMemoryDatabaseBuilder(context, SleepDatabase::class.java)
+                // Allowing main thread queries, just for testing.
+                .allowMainThreadQueries()
+                .setTransactionExecutor(Executors.newSingleThreadExecutor())
+                .build()
+        sleepDao = db.sleepDatabaseDao
+    }
+
+    @After
+    @Throws(IOException::class)
+    fun closeDb() {
+        db.close()
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun insertAndGetNight() = runBlocking {
+        val night = SleepNight()
+        sleepDao.insert(night)
+        val tonight = sleepDao.getTonight()
+        assertEquals(tonight?.sleepQuality, -1)
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun updateAndGetNight() = runBlocking {
+        val night = SleepNight()
+        sleepDao.insert(night)
+        val tonight = sleepDao.getTonight()
+        assertEquals(tonight?.sleepQuality, -1)
+
+        tonight!!.sleepQuality = 123
+        sleepDao.update(tonight)
+        val tonight2 = sleepDao.getTonight()
+        assertEquals(123, tonight2?.sleepQuality)
+    }
+
+    @Test
+    @Throws(Exception::class)
+    fun clearNights() = runBlocking {
+        val night = SleepNight()
+        sleepDao.insert(night)
+        sleepDao.insert(night)
+        sleepDao.insert(night)
+
+        val size = sleepDao.getAllNights().getOrAwaitValue().size
+        assertEquals(3, size)
+
+        sleepDao.clear()
+        val size0 = sleepDao.getAllNights().getOrAwaitValue().size
+        assertEquals(0, size0)
+    }
+}
+

@@ -16,6 +16,7 @@
 
 package com.example.android.trackmysleepquality
 
+import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -27,6 +28,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
@@ -43,6 +45,15 @@ class SleepDatabaseTest {
 
     private lateinit var sleepDao: SleepDatabaseDao
     private lateinit var db: SleepDatabase
+
+    /**
+     * A JUnit Test Rule that swaps the background executor used by the Architecture
+     * Components with a different one which executes each task synchronously.
+     * Without this rule, LiveData has problem with observers on background thread.
+     * Credit: https://stackoverflow.com/a/52274925
+     */
+    @get:Rule
+    val instantTaskExecutorRule = InstantTaskExecutorRule()
 
     @Before
     fun createDb() {
@@ -86,24 +97,20 @@ class SleepDatabaseTest {
         assertEquals(123, tonight2?.sleepQuality)
     }
 
-// throws java.lang.IllegalStateException: Cannot invoke observeForever on a background thread
-//    @Test
-//    @Throws(Exception::class)
-//    fun clearNights() {
-//        val night = SleepNight()
-//        runBlocking {
-//            sleepDao.insert(night)
-//            sleepDao.insert(night)
-//            sleepDao.insert(night)
-//        }
-//        val size = sleepDao.getAllNights().getOrAwaitValue().size
-//        assertEquals(3, size)
-//
-//        runBlocking {
-//            sleepDao.clear()
-//        }
-//        val size0 = sleepDao.getAllNights().getOrAwaitValue().size
-//        assertEquals(0, size0)
-//    }
+    @Test
+    @Throws(Exception::class)
+    fun clearNights() = runBlocking {
+        val night = SleepNight()
+        sleepDao.insert(night)
+        sleepDao.insert(night)
+        sleepDao.insert(night)
+
+        val size = sleepDao.getAllNights().getOrAwaitValue().size
+        assertEquals(3, size)
+
+        sleepDao.clear()
+        val size0 = sleepDao.getAllNights().getOrAwaitValue().size
+        assertEquals(0, size0)
+    }
 }
 

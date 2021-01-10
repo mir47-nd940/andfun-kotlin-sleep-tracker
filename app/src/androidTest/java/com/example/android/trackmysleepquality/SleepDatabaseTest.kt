@@ -22,6 +22,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.android.trackmysleepquality.database.SleepDatabase
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
 import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.ext.getOrAwaitValue
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.After
@@ -29,6 +30,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
+import java.util.concurrent.Executors
 
 /**
  * This is not meant to be a full set of tests. For simplicity, most of your samples do not
@@ -50,6 +52,7 @@ class SleepDatabaseTest {
         db = Room.inMemoryDatabaseBuilder(context, SleepDatabase::class.java)
                 // Allowing main thread queries, just for testing.
                 .allowMainThreadQueries()
+                .setTransactionExecutor(Executors.newSingleThreadExecutor())
                 .build()
         sleepDao = db.sleepDatabaseDao
     }
@@ -68,5 +71,39 @@ class SleepDatabaseTest {
         val tonight = sleepDao.getTonight()
         assertEquals(tonight?.sleepQuality, -1)
     }
+
+    @Test
+    @Throws(Exception::class)
+    fun updateAndGetNight() = runBlocking {
+        val night = SleepNight()
+        sleepDao.insert(night)
+        val tonight = sleepDao.getTonight()
+        assertEquals(tonight?.sleepQuality, -1)
+
+        tonight!!.sleepQuality = 123
+        sleepDao.update(tonight)
+        val tonight2 = sleepDao.getTonight()
+        assertEquals(123, tonight2?.sleepQuality)
+    }
+
+// throws java.lang.IllegalStateException: Cannot invoke observeForever on a background thread
+//    @Test
+//    @Throws(Exception::class)
+//    fun clearNights() {
+//        val night = SleepNight()
+//        runBlocking {
+//            sleepDao.insert(night)
+//            sleepDao.insert(night)
+//            sleepDao.insert(night)
+//        }
+//        val size = sleepDao.getAllNights().getOrAwaitValue().size
+//        assertEquals(3, size)
+//
+//        runBlocking {
+//            sleepDao.clear()
+//        }
+//        val size0 = sleepDao.getAllNights().getOrAwaitValue().size
+//        assertEquals(0, size0)
+//    }
 }
 
